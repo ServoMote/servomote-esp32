@@ -42,7 +42,7 @@ const int MAX_ANGLE = 180;
 
 M5_UNIT_8SERVO unit_8servo;
 
-int servoAngles[NUM_SERVOS] = {90, 90, 90, 90, 90, 90, 90, 90};
+int servoAngles[NUM_SERVOS] = {-1, -1, -1, -1, -1, -1, -1, -1};
 
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
@@ -79,6 +79,7 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks {
 
       int colonIndex = value.indexOf(':');
       if (colonIndex > 0) {
+        // Set command: servo_id:angle
         int servoId = value.substring(0, colonIndex).toInt();
         int angle = value.substring(colonIndex + 1).toInt();
 
@@ -93,7 +94,6 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks {
           Serial.print(angle);
           Serial.println(" degrees");
 
-          // Send confirmation back
           String response = "OK:" + String(servoId) + ":" + String(angle);
           pCharacteristic->setValue(response.c_str());
           pCharacteristic->notify();
@@ -103,9 +103,17 @@ class CharacteristicCallbacks : public BLECharacteristicCallbacks {
           pCharacteristic->notify();
         }
       } else {
-        Serial.println("Invalid format (use servo_id:angle)");
-        pCharacteristic->setValue("ERROR:Invalid format");
-        pCharacteristic->notify();
+        // Get command: servo_id
+        int servoId = value.toInt();
+        if (servoId >= 1 && servoId <= NUM_SERVOS) {
+          int index = servoId - 1;
+          String response = "OK:" + String(servoId) + ":" + String(servoAngles[index]);
+          pCharacteristic->setValue(response.c_str());
+          pCharacteristic->notify();
+        } else {
+          pCharacteristic->setValue("ERROR:Invalid servo ID");
+          pCharacteristic->notify();
+        }
       }
     }
   }
@@ -128,10 +136,6 @@ void setup() {
   // Set all pins to servo control mode
   unit_8servo.setAllPinMode(SERVO_CTL_MODE);
 
-  // Set all servos to center position
-  for (int i = 0; i < NUM_SERVOS; i++) {
-    setServoAngle(i, servoAngles[i]);
-  }
   Serial.println("M5Stack 8Servo Unit initialized - 8 servo channels available");
 
   // Initialize BLE
